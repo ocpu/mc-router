@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -11,8 +12,12 @@ import (
 	discardMetrics "github.com/go-kit/kit/metrics/discard"
 	expvarMetrics "github.com/go-kit/kit/metrics/expvar"
 	kitinflux "github.com/go-kit/kit/metrics/influx"
+	prometheusMetrics "github.com/go-kit/kit/metrics/prometheus"
+	"github.com/gorilla/mux"
 	influx "github.com/influxdata/influxdb1-client/v2"
 	"github.com/itzg/mc-router/server"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,6 +32,8 @@ func NewMetricsBuilder(backend string, config *MetricsBackendConfig) MetricsBuil
 		return &expvarMetricsBuilder{}
 	case "influxdb":
 		return &influxMetricsBuilder{config: config}
+	case "prometheus":
+		return &prometheusMetricsBuilder{config: config}
 	default:
 		return &discardMetricsBuilder{}
 	}
@@ -110,5 +117,61 @@ func (b *influxMetricsBuilder) BuildConnectorMetrics() *server.ConnectorMetrics 
 		BytesTransmitted:  metrics.NewCounter("mc_router_transmitted_bytes"),
 		Connections:       metrics.NewCounter("mc_router_connections"),
 		ActiveConnections: metrics.NewGauge("mc_router_connections_active"),
+	}
+}
+
+type prometheusMetricsBuilder struct {
+	config   *MetricsBackendConfig
+	registry *prometheus.Registry
+}
+
+func (b prometheusMetricsBuilder) Start(ctx context.Context) error {
+	prometheusConfig := &b.config.Prometheus
+
+	go func() {
+		routes := mux.NewRouter()
+		routes.Handle("/metrics", promhttp.HandlerFor(b.registry, promhttp.HandlerOpts{}))
+		logrus.WithError(http.ListenAndServe(prometheusConfig.Bind, routes)).
+			Error("Prometheus server failed")
+		logrus.WithField("addr", prometheusConfig.Bind).
+			Info("Prometheus metrics server has stopped")
+	}()
+	logrus.WithField("addr", prometheusConfig.Bind).
+		Info("Prometheus metrics server has started")
+	return nil
+}
+
+func (b *prometheusMetricsBuilder) BuildConnectorMetrics() *server.ConnectorMetrics {
+	metricErrors := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "mc_router",
+		Name:      "errors",
+	}, []string{"type", "subsystem"})
+	metricBytes := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "mc_router",
+		Name:      "transmitted_bytes",
+	}, []string{})
+	metricConnections := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "mc_router",
+		Name:      "connections",
+	}, []string{"side", "host"})
+	metricActiveConnections := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "mc_router",
+		Name:      "active_connections",
+	}, []string{})
+
+	registry := prometheus.NewRegistry()
+
+	registry.MustRegister(metricErrors)
+	registry.MustRegister(metricBytes)
+	registry.MustRegister(metricConnections)
+	registry.MustRegister(metricActiveConnections)
+
+	b.registry = registry
+
+	return &server.ConnectorMetrics{
+		Errors:            prometheusMetrics.NewCounter(metricErrors).With("subsystem", "connector"),
+		BytesTransmitted:  prometheusMetrics.NewCounter(metricBytes),
+		Connections:       prometheusMetrics.NewCounter(metricConnections).With("host", ""),
+		ActiveConnections: prometheusMetrics.NewGauge(metricActiveConnections),
 	}
 }

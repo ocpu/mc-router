@@ -33,7 +33,7 @@ Routes Minecraft client connections to backend servers based upon the requested 
   -mapping string
     	Comma-separated mappings of externalHostname=host:port (env MAPPING)
   -metrics-backend string
-    	Backend to use for metrics exposure/publishing: discard,expvar,influxdb (env METRICS_BACKEND) (default "discard")
+    	Backend to use for metrics exposure/publishing: discard,expvar,influxdb,prometheus (env METRICS_BACKEND) (default "discard")
   -metrics-backend-config-influxdb-addr string
     	 (env METRICS_BACKEND_CONFIG_INFLUXDB_ADDR)
   -metrics-backend-config-influxdb-database string
@@ -48,6 +48,8 @@ Routes Minecraft client connections to backend servers based upon the requested 
     	any extra tags to be included with all reported metrics (env METRICS_BACKEND_CONFIG_INFLUXDB_TAGS)
   -metrics-backend-config-influxdb-username string
     	 (env METRICS_BACKEND_CONFIG_INFLUXDB_USERNAME)
+  -metrics-backend-config-prometheus-bind string
+        The address bound for the Prometheus HTTP server (env METRICS_BACKEND_CONFIG_PROMETHEUS_BIND) (default ":9100")
   -port port
     	The port bound to listen for Minecraft client connections (env PORT) (default 25565)
   -routes-config string

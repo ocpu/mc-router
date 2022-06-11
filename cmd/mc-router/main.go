@@ -27,6 +27,9 @@ type MetricsBackendConfig struct {
 		Database        string
 		RetentionPolicy string
 	}
+	Prometheus struct {
+		Bind string `default:":9100" usage:"The address bound for the Prometheus HTTP server"`
+	}
 }
 
 type Config struct {
@@ -43,7 +46,7 @@ type Config struct {
 	InDockerSwarm         bool     `usage:"Use in-swarm Docker config"`
 	DockerTimeout         int      `default:"0" usage:"Timeout configuration in seconds for the Docker Swarm integration"`
 	DockerRefreshInterval int      `default:"15" usage:"Refresh interval in seconds for the Docker Swarm integration"`
-	MetricsBackend        string   `default:"discard" usage:"Backend to use for metrics exposure/publishing: discard,expvar,influxdb"`
+	MetricsBackend        string   `default:"discard" usage:"Backend to use for metrics exposure/publishing: discard,expvar,influxdb,prometheus"`
 	UseProxyProtocol      bool     `default:"false" usage:"Send PROXY protocol to backend servers"`
 	MetricsBackendConfig  MetricsBackendConfig
 	RoutesConfig          string   `usage:"Name or full path to routes config file"`
